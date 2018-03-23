@@ -9,7 +9,11 @@
 namespace App\Console\Commands;
 
 
+use App\Models\OrderRedressLog;
 use App\Services\YingYanService;
+use App\Services\DistanceService;
+use App\Models\CallService\Order;
+use App\Models\OrderLocation;
 use Illuminate\Console\Command;
 
 class OldOrderCommand extends Command {
@@ -46,6 +50,54 @@ class OldOrderCommand extends Command {
      */
     public function handle()
     {
+        //获取复合条件的订单
+        $orders = Order::where('order.status', 5)
+                  ->select('order.id', 'ol.points', 'ol.realBeginLatitude', 'ol.realBeginLongitude', 'ol.realEndLatitude', 'ol.realEndLongitude', 'of.totalFee', 'of.totalDistance', 'of.baseDistanceFee')
+                  ->leftJoin('order_location as ol', 'ol.orderId', '=', 'order.id')
+                  ->leftJoin('order_fee as of', 'of.orderId', '=', 'order.id')
+                  ->where('order.createdAt', '>', date('Y-m-d', strtotime("-1 month")))
+                  ->where('order.createdAt', '<=', date("Y-m-d H:i:s"))
+//                  ->where('order.id', 3304)
+                  ->get()
+                  ->toArray();
+
+        foreach ($orders as $order){
+            $orderId = $order['id'];
+            //获取鹰眼的全部距离
+            $distance = $this->yingYanInterface($orderId);
+            //如果获取鹰眼距离失败，调用直线距离
+            if($distance === false){
+                $distance = DistanceService::getDistanceOfPoints($order['points']);
+            }
+
+            //获取机丢点数据，并获取丢的轨迹距离
+            $redressDistance = DistanceService::getRedressDistance($order);
+            \Log::info('redressDistance  cccccccccccccccccccc' . $redressDistance);
+            if($redressDistance === false){
+                \Log::info('redressDistance  rrrrrrrrrrrrr');
+                continue;
+            }
+
+            #假定这个比例值为X，丢失距离为L1、总里程为L，最大补偿系数为Y，补偿前费用为S，补偿费用=MIN（车型里程单价*（L1-L*X），S*Y）
+            #（L1-L*X）
+            if($redressDistance - $distance * OrderRedressLog::REDRESS_SPACING  < 0){
+                continue;
+            }
+            //计算需要补偿的价格
+            $price = $order['baseDistanceFee'] * $redressDistance/1000;
+            $redressMoney = $price > OrderRedressLog::MAX_REDRESS_NUM ? OrderRedressLog::MAX_REDRESS_NUM : $price;
+            $insertOrderRedressLog = [];
+            $insertOrderRedressLog['orderId'] = $order['id'];
+            $insertOrderRedressLog['eagleTotalDistance'] = $distance;
+            $insertOrderRedressLog['redressDistance'] = $redressDistance;
+            $insertOrderRedressLog['distance'] = $order['totalDistance'];
+            $insertOrderRedressLog['money'] = $order['totalFee'];
+            $insertOrderRedressLog['redressMoney'] = $redressMoney;
+            $insertOrderRedressLog['totalMoney'] = $redressMoney + $order['totalFee'];
+
+            OrderRedressLog::insert($insertOrderRedressLog);
+
+        }
 
     }
 

@@ -7,6 +7,7 @@
  */
 
 namespace  App\Services;
+use Log;
 
 class CommonService {
 
