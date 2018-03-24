@@ -57,14 +57,14 @@ class OldOrderCommand extends Command {
                   ->leftJoin('order_fee as of', 'of.orderId', '=', 'order.id')
                   ->where('order.createdAt', '>', date('Y-m-d', strtotime("-1 month")))
                   ->where('order.createdAt', '<=', date("Y-m-d H:i:s"))
-//                  ->where('order.id', 3304)
+                  ->where('order.id', 3304)
                   ->get()
                   ->toArray();
 
         foreach ($orders as $order){
             $orderId = $order['id'];
             //获取鹰眼的全部距离
-            $distance = $this->yingYanInterface($orderId);
+            $distance = 12497;//$this->yingYanInterface($orderId);
             //如果获取鹰眼距离失败，调用直线距离
             if($distance === false){
                 $distance = DistanceService::getDistanceOfPoints($order['points']);
@@ -72,9 +72,9 @@ class OldOrderCommand extends Command {
 
             //获取机丢点数据，并获取丢的轨迹距离
             $redressDistance = DistanceService::getRedressDistance($order);
-            \Log::info('redressDistance  cccccccccccccccccccc' . $redressDistance);
+            \Log::info('redressDistance  ' . $redressDistance);
             if($redressDistance === false){
-                \Log::info('redressDistance  rrrrrrrrrrrrr');
+                \Log::info('redressDistance  计算丢失距离失败');
                 continue;
             }
 

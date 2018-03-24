@@ -11,7 +11,7 @@ return [
 	//网关服务器地址
 	'gateHost' => env('GATEWAY_HOST_URL'),
 
-    'bdAk' => 'YEtiMWEBWbpDzvTARpNXuRGHwpI0NPYq',
+    'bdAk' => 'SEesyY7PmuYhT9HkiDEobZ0hd7d2IIc9'//'YEtiMWEBWbpDzvTARpNXuRGHwpI0NPYq',
 
 ];
 

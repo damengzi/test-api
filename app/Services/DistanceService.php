@@ -158,25 +158,33 @@ class DistanceService
     {
         //记录丢点的经纬度数组
         $points = json_decode($order['points'], true);
+
         //测试起点、终点、每个点之间的距离差距
         //实际起点和points点第一个距离
         $redressPoint = [];
-        $spacing = DistanceService::getDistance($order['realBeginLatitude'], $order['realBeginLongitude'], $points[0]['la'], $points[0]['lo']);
+        $spacing = 0;
+        $spacing = self::getDistance($order['realBeginLatitude'], $order['realBeginLongitude'], $points[0]['la'], $points[0]['lo']);
         if ($spacing > OrderRedressLog::SPACING) {
             $redressPoint[] = ['start' => ['la' => $order['realBeginLatitude'], 'lo' => $order['realBeginLongitude']], 'end' => ['la' => $points[0]['la'], 'lo' => $points[0]['lo']]];
         }
 
         $len = count($points);
+        $lindian = [];
         for ($i = 1; $i < $len; $i++) {
-            $spacing = DistanceService::getDistance($points[$i]['la'], $points[$i]['lo'], $points[$i - 1]['la'], $points[$i - 1]['lo']);
-            if ($spacing > OrderRedressLog::SPACING) {
-                $redressPoint[] = ['start' => ['la' => $points[$i]['la'], 'lo' => $points[$i]['lo']], 'end' => ['la' => $points[$i - 1]['la'], 'lo' => $points[$i - 1]['lo']]];
+            $jianju = 0;
+            $jianju = self::getDistance($points[$i]['la'], $points[$i]['lo'], $points[$i - 1]['la'], $points[$i - 1]['lo']);
+            if ((int)$jianju > OrderRedressLog::SPACING) {
+                $lindian = ['start' => ['la' => $points[$i]['la'], 'lo' => $points[$i]['lo']], 'end' => ['la' => $points[$i - 1]['la'], 'lo' => $points[$i - 1]['lo']]];
+                $redressPoint[] = $lindian;
             }
+            continue;
         }
 
-        $spacing = DistanceService::getDistance($order['realEndLatitude'], $order['realEndLongitude'], $points[$len - 1]['la'], $points[$len - 1]['lo']);
+
+        $spacing = self::getDistance($order['realEndLatitude'], $order['realEndLongitude'], $points[$len - 1]['la'], $points[$len - 1]['lo']);
+
         if ($spacing > OrderRedressLog::SPACING) {
-            $redressPoint[] = ['start' => ['la' => $order['realEndLatitude'], 'lo' => $order['realEndLongitude']], 'end' => ['la' => $points[$len - 1]['la'], 'lo' => $points[$len - 1]['lo']]];
+            $redressPoint = ['start' => ['la' => $order['realEndLatitude'], 'lo' => $order['realEndLongitude']], 'end' => ['la' => $points[$len - 1]['la'], 'lo' => $points[$len - 1]['lo']]];
         }
 
         \Log::info("过滤后的点", ['data' => $redressPoint]);
@@ -188,29 +196,42 @@ class DistanceService
         \Log::info("超过范围的所有点的经纬度", ['points' => $redressPoint]);
 
         //获取点之间的轨迹距离
+        $newDistance = [];
+        $zhixianDistance = [];
         foreach ($redressPoint as $item) {
-            $distance[] = self::getBaiDuDistance($item);//调用百度
+            $distance = self::getGaoDeDistance($item);//调用百度
             if ($distance === false) {
-                $distance[] = self::getGaoDeDistance($item);
+                $distance = self::getBaiDuDistance($item);
                 if ($distance === false) {
-                    $distance[] = self::getDistance($item['start']['la'], $item['start']['lo'], $item['end']['la'], $item['end']['lo']);
+                    $distance = self::getDistance($item['start']['la'], $item['start']['lo'], $item['end']['la'], $item['end']['lo']);
                 }
             }
+            $newDistance[] = $distance;
+            $zhixianDistance[] = self::getDistance($item['start']['la'], $item['start']['lo'], $item['end']['la'], $item['end']['lo']);
         }
 
-        \Log::info("丢失距离为：", ['data' => $distance]);
+        \Log::info("丢失距离为：", ['data' => $newDistance]);
 
-        $rtDistance = array_sum($distance);
+        $lineDistance = array_sum($zhixianDistance);
+        $trailDistance = array_sum($newDistance);
+        $rtDistance = $trailDistance > $lineDistance ? ($trailDistance - $lineDistance) : 0 ;
+
+        \Log::info("丢失距离：", ['guiDistance' => $trailDistance, 'zhiDistance' => $lineDistance]);
+
         return $rtDistance;
     }
 
     public static function getBaiDuDistance($item)
     {
         $bdAk = Config::get('common.bdAk');
-        $destination = $item['end']['la'] . ',' . $item['end']['lo'];
         $origin = $item['start']['la'] . ',' . $item['start']['lo'];
+        $destination = $item['end']['la'] . ',' . $item['end']['lo'];
+        \Log::info("百度接口百度");
+//        $url = 'http://api.map.baidu.com/direction/v2/driving?coord_type=gcj02&origin=' . $origin . '&destination=' . $destination . '&ak=' . $bdAk;
+//        $url = 'http://api.map.baidu.com/routematrix/v2/driving?coord_type=gcj02&origins=39.958096,116.355232&destinations=39.960487,116.355118&ak=SEesyY7PmuYhT9HkiDEobZ0hd7d2IIc9';
+        $url = 'http://api.map.baidu.com/routematrix/v2/driving?coord_type=gcj02&origins=' . $destination . '&destinations=' . $origin . '&ak=' . $bdAk;
+
         try {
-            $url = 'http://api.map.baidu.com/direction/v2/driving?origin=' . $origin . '&destination=' . $destination . '&ak=' . $bdAk;
             $distance = CommonService::curlRequest($url, 'get', [], 1);
             if (!$distance) {//请求接口未响应
                 \Log::info("百度地图请求超时：", ['url' => $url, 'result' => $distance]);
@@ -224,7 +245,7 @@ class DistanceService
         }
 
         $distance = json_decode($distance, true);
-        \Log::info('百度地图返回数据', ['info' => $distance]);
+//        \Log::info('百度地图返回数据', ['info' => $distance]);
         $status = array_get($distance, 'status', '');
         $rtDistance = 0;
         //判断接口调用成功与否 status 0 成功 1：服务内部错误 2：参数无效 7：无返回结果
@@ -233,7 +254,7 @@ class DistanceService
             return false;
         }
 
-        $rtDistance = $distance['result']['routes'][0]['distance'];
+        $rtDistance = $distance['result'][0]['distance']['value'];
 
         return $rtDistance;
     }
@@ -241,9 +262,10 @@ class DistanceService
     public static function getGaoDeDistance($item)
     {
         $gdKey = Config::get("common.gdKey");
-        $destination = $item['end']['la'] . ',' . $item['end']['lo'];
-        $origin = $item['start']['la'] . ',' . $item['start']['lo'];
-        $url = "http://restapi.amap.com/v3/distance?origins=$origin&destination=$destination&key=$gdKey";
+        $apiKey =  $gdKey[array_rand($gdKey, 1)];
+        $origin = $item['end']['lo'] . ',' . $item['end']['la'];
+        $destination = $item['start']['lo'] . ',' . $item['start']['la'];
+        $url = "http://restapi.amap.com/v3/distance?origins=$origin&destination=$destination&key=$apiKey";
 
         try {
             $distance = CommonService::curlRequest($url, 'get', [], 1);
@@ -265,7 +287,8 @@ class DistanceService
             Log::info("amap api failed:", ['url' => $url, 'result' => $distance]);
             return false;
         }
-        $rtDistance = $distance['results']['result']['distance'];
+//        \Log::info("mmmmmmmmmmmmmmmmmm", ['mmmm' => $distance]);
+        $rtDistance = $distance['results'][0]['distance'];
         return $rtDistance;
     }
 
