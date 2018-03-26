@@ -236,12 +236,12 @@ class DistanceService
             if (!$distance) {//请求接口未响应
                 \Log::info("百度地图请求超时：", ['url' => $url, 'result' => $distance]);
                 //接口请求超时，直接返回数据距离和时间都为0
-                $distance = ['status' => 0, 'info' => 'amap api timed out'];
+                $distance = json_encode(['status' => 0, 'info' => 'amap api timed out']);
             }
         } catch (Exception $e) {//调用接口出错
             Log::info("百度地图调用失败:", ['url' => $url]);
 
-            $distance = ['status' => 0, 'distance' => $distance];
+            $distance = json_encode(['status' => 0, 'distance' => $distance]);
         }
 
         $distance = json_decode($distance, true);
@@ -272,12 +272,12 @@ class DistanceService
             if (!$distance) {
                 \Log::info("高德地图请求超时：", ['url' => $url, 'result' => $distance]);
                 //接口请求超时，直接返回数据距离和时间都为0
-                $distance = ['status' => 0, 'info' => 'amap api timed out'];
+                $distance = json_encode(['status' => 0, 'info' => 'amap api timed out']);
             }
         } catch (Exception $e) {
             Log::info("高德地图调用失败:", ['url' => $url]);
 
-            $distance = ['status' => 0, 'distance' => $distance];
+            $distance = json_encode(['status' => 0, 'distance' => $distance]);
         }
         $distance = json_decode($distance, true);
         $status = array_get($distance, 'status', '');

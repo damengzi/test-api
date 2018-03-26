@@ -18,6 +18,8 @@ class OrderRedressLog extends Model {
     const CREATED_AT = 'createdAt';
 
     //订单丢点补偿系数
+    const DIFF_PRE_OR_REAL_DISTANCE = 1000;
+    const DIFF_DISTANCE = 5000;//预估距离与鹰眼误差范围
     const SPACING = 100;    //  间距差
     const REDRESS_SPACING = 0.3;    //  补偿系数(丢失点距离/总距离 >30%时需要进行补偿计算)
     const MAX_REDRESS_NUM = 20;    //  最大补偿系数为Y

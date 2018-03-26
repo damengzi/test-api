@@ -52,24 +52,39 @@ class OldOrderCommand extends Command {
     {
         //获取复合条件的订单
         $orders = Order::where('order.status', 5)
-            ->select('order.id', 'ol.points', 'ol.realBeginLatitude', 'ol.realBeginLongitude', 'ol.realEndLatitude', 'ol.realEndLongitude', 'of.totalFee', 'of.totalDistance', 'of.baseDistanceFee')
+            ->select('order.id', 'ol.points', 'ol.realBeginLatitude', 'ol.realBeginLongitude', 'ol.realEndLatitude', 'ol.realEndLongitude', 'of.totalFee', 'of.totalDistance', 'of.baseDistanceFee', 'opf.preTotalDistance')
             ->leftJoin('order_location as ol', 'ol.orderId', '=', 'order.id')
             ->leftJoin('order_fee as of', 'of.orderId', '=', 'order.id')
+            ->leftJoin('order_pre_fee as opf', 'opf.orderId', '=', 'order.id')
             ->where('order.createdAt', '>', date('Y-m-d', strtotime("-1 month")))
             ->where('order.createdAt', '<=', date("Y-m-d H:i:s"))
-            ->where('order.id', '>', 5891)
+            ->where('order.id', '>', 0)
+//            ->where('order.id', 3304)
             ->limit(100)
             ->get()
             ->toArray();
 
         foreach ($orders as $order){
+            //预估和实际距离相比较，相差不大的直接跳过
+            if(abs($order['totalDistance'] - $order['preTotalDistance']) < OrderRedressLog::DIFF_PRE_OR_REAL_DISTANCE){
+                continue;
+            }
+
             $orderId = $order['id'];
             //获取鹰眼的全部距离
             $distance = $this->yingYanInterface($orderId);
+            echo "鹰眼距离" . $distance . '-----预估距离' .$order['preTotalDistance'] . "\n";
             //如果获取鹰眼距离失败，调用直线距离
             if($distance === false){
                 $distance = DistanceService::getDistanceOfPoints(json_decode($order['points'], true));
+            }else{
+                if(abs($distance - $order['preTotalDistance']) > OrderRedressLog::DIFF_DISTANCE){
+                    $distance = $order['preTotalDistance'];
+                }else{
+                    continue;
+                }
             }
+
 
             //获取机丢点数据，并获取丢的轨迹距离
             $redressDistance = DistanceService::getRedressDistance($order);
