@@ -52,22 +52,23 @@ class OldOrderCommand extends Command {
     {
         //获取复合条件的订单
         $orders = Order::where('order.status', 5)
-                  ->select('order.id', 'ol.points', 'ol.realBeginLatitude', 'ol.realBeginLongitude', 'ol.realEndLatitude', 'ol.realEndLongitude', 'of.totalFee', 'of.totalDistance', 'of.baseDistanceFee')
-                  ->leftJoin('order_location as ol', 'ol.orderId', '=', 'order.id')
-                  ->leftJoin('order_fee as of', 'of.orderId', '=', 'order.id')
-                  ->where('order.createdAt', '>', date('Y-m-d', strtotime("-1 month")))
-                  ->where('order.createdAt', '<=', date("Y-m-d H:i:s"))
-                  ->where('order.id', 3304)
-                  ->get()
-                  ->toArray();
+            ->select('order.id', 'ol.points', 'ol.realBeginLatitude', 'ol.realBeginLongitude', 'ol.realEndLatitude', 'ol.realEndLongitude', 'of.totalFee', 'of.totalDistance', 'of.baseDistanceFee')
+            ->leftJoin('order_location as ol', 'ol.orderId', '=', 'order.id')
+            ->leftJoin('order_fee as of', 'of.orderId', '=', 'order.id')
+            ->where('order.createdAt', '>', date('Y-m-d', strtotime("-1 month")))
+            ->where('order.createdAt', '<=', date("Y-m-d H:i:s"))
+            ->where('order.id', '>', 5891)
+            ->limit(100)
+            ->get()
+            ->toArray();
 
         foreach ($orders as $order){
             $orderId = $order['id'];
             //获取鹰眼的全部距离
-            $distance = 12497;//$this->yingYanInterface($orderId);
+            $distance = $this->yingYanInterface($orderId);
             //如果获取鹰眼距离失败，调用直线距离
             if($distance === false){
-                $distance = DistanceService::getDistanceOfPoints($order['points']);
+                $distance = DistanceService::getDistanceOfPoints(json_decode($order['points'], true));
             }
 
             //获取机丢点数据，并获取丢的轨迹距离
@@ -162,6 +163,7 @@ class OldOrderCommand extends Command {
             if ($step % 100 == 0) {
 
                 $sendPointsRes = $this->yingYanService->addPoints($postPoints);
+                sleep(2);
                 $sendPointsResStatus = array_get($sendPointsRes, 'status');
                 $sendPointsResMessage = array_get($sendPointsRes, 'message');
                 \Log::info('循环上传点数量'. count($postPoints));
@@ -172,7 +174,7 @@ class OldOrderCommand extends Command {
                 $postPoints = [];
             }
         }
-        \Log::info('上传点数量' . count($postPoints));
+        \Log::info('上传点数量' . count($postPoints) . "orderId:" . $orderId);
         // 最后的不足100个的点上传
         $sendPointsRes = $this->yingYanService->addPoints($postPoints);
         $sendPointsResStatus = array_get($sendPointsRes, 'status');

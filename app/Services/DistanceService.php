@@ -184,7 +184,7 @@ class DistanceService
         $spacing = self::getDistance($order['realEndLatitude'], $order['realEndLongitude'], $points[$len - 1]['la'], $points[$len - 1]['lo']);
 
         if ($spacing > OrderRedressLog::SPACING) {
-            $redressPoint = ['start' => ['la' => $order['realEndLatitude'], 'lo' => $order['realEndLongitude']], 'end' => ['la' => $points[$len - 1]['la'], 'lo' => $points[$len - 1]['lo']]];
+            $redressPoint[] = ['start' => ['la' => $order['realEndLatitude'], 'lo' => $order['realEndLongitude']], 'end' => ['la' => $points[$len - 1]['la'], 'lo' => $points[$len - 1]['lo']]];
         }
 
         \Log::info("过滤后的点", ['data' => $redressPoint]);
